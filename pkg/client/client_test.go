@@ -1,7 +1,13 @@
 package client
 
 import (
+	"fmt"
+	"os/exec"
+	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -45,4 +51,60 @@ func TestDelete(t *testing.T) {
 	v, err = c.Get(key)
 	assert.NoError(t, err, "TestDelete failed")
 	assert.Empty(t, v, "TestDelete failed")
+}
+
+func TestConsensus(t *testing.T) {
+	var mu sync.Mutex
+	data := make(map[string][]byte)
+	var failTime int32
+	//write to two nodes
+	cmd := exec.Command("docker", "stop", "consensus_node3_1")
+	err := cmd.Run()
+	assert.NoError(t, err, "Fail to stop a node!")
+
+	ticker := time.NewTicker(time.Second)
+	stopCh := make(chan bool)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case t := <-ticker.C:
+				go func(timestamp string) {
+					fmt.Printf("Start set at %s\n", timestamp)
+					c := New("127.0.0.1:8081")
+					for i := 0; i != 1000; i++ {
+						key := []byte(timestamp + fmt.Sprint(i))
+						value := key
+						err := c.Set(key, value)
+						if err != nil {
+							atomic.AddInt32(&failTime, 1)
+						} else {
+							mu.Lock()
+							data[string(key)] = value
+							mu.Unlock()
+						}
+					}
+					fmt.Printf("Stop set at %s\n", timestamp)
+				}(strconv.FormatInt(t.Unix(), 10))
+
+			case <-stopCh:
+				return
+			}
+		}
+	}()
+
+	time.Sleep(5 * time.Minute)
+	stopCh <- true
+	//restart the node
+	cmd = exec.Command("docker", "restart", "consensus_node3_1")
+	err = cmd.Run()
+	assert.NoError(t, err, "Fail to stop a node!")
+	time.Sleep(time.Minute)
+	fmt.Println("Start test data consensus")
+	c := New("127.0.0.1:8083")
+	for k, v := range data {
+		val, err := c.Get([]byte(k))
+		assert.NoError(t, err)
+		assert.Equal(t, v, val)
+	}
 }

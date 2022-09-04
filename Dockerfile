@@ -1,4 +1,4 @@
-FROM  --platform=linux/amd64 fagongzi/golang:1.15.1 as builder
+FROM  --platform=linux/amd64 fagongzi/golang:1.16.3 as builder
 
 COPY . /go/src/github.com/matrixorigin/talent-challenge/matrixbase/distributed
 WORKDIR /go/src/github.com/matrixorigin/talent-challenge/matrixbase/distributed
@@ -9,6 +9,7 @@ FROM  --platform=linux/amd64 alpine:latest
 
 RUN mkdir -p /apps/matrixbase/distributed/bin
 RUN mkdir -p /apps/matrixbase/distributed/logs
+RUN apk add wget
 
 
 ARG APP_ROOT=/apps/matrixbase/distributed

@@ -2,23 +2,33 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/matrixorigin/talent-challenge/matrixbase/distributed/pkg/cfg"
 	"github.com/matrixorigin/talent-challenge/matrixbase/distributed/pkg/model"
 	"github.com/matrixorigin/talent-challenge/matrixbase/distributed/pkg/store"
+	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 // Server http api server
 type Server struct {
-	cfg    cfg.Cfg
-	store  store.Store
-	engine *gin.Engine
+	cfg        cfg.Cfg
+	store      store.Store
+	engine     *gin.Engine
+	proposeC   chan string
+	confchange chan raftpb.ConfChange
 }
 
 // NewServer create the server
 func NewServer(cfg cfg.Cfg) (*Server, error) {
-	s, err := store.NewStore(cfg.Store)
+	proposeC := make(chan string)
+	confChangeC := make(chan raftpb.ConfChange)
+	var kvs store.Store
+	getSnapshot := func() ([]byte, error) { return kvs.GetSnapshot() }
+	commitC, errorC, snapshotterReady := store.NewRaftNode(cfg.Raft.ID, strings.Split(cfg.Raft.Peers, ","), false, getSnapshot, proposeC, confChangeC)
+
+	kvs, err := store.NewStore(cfg.Store, <-snapshotterReady, proposeC, commitC, errorC, cfg.API.Addr)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +39,7 @@ func NewServer(cfg cfg.Cfg) (*Server, error) {
 
 	return &Server{
 		cfg:    cfg,
-		store:  s,
+		store:  kvs,
 		engine: engine,
 	}, nil
 }
@@ -39,11 +49,15 @@ func (s *Server) Start() error {
 	s.engine.GET("/kv", s.doGet)
 	s.engine.POST("/kv", s.doSet)
 	s.engine.DELETE("/kv", s.doDelete)
+	//serve snapshot directory
+	s.engine.StaticFS("/snapshots", http.Dir(store.SnapShotDirs))
 	return s.engine.Run(s.cfg.API.Addr)
 }
 
 // Stop stop the server
 func (s *Server) Stop() error {
+	close(s.confchange)
+	close(s.proposeC)
 	return nil
 }
 

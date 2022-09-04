@@ -2,6 +2,7 @@ package store
 
 import (
 	"github.com/matrixorigin/talent-challenge/matrixbase/distributed/pkg/cfg"
+	"go.etcd.io/etcd/server/v3/etcdserver/api/snap"
 )
 
 // Store the store interface
@@ -12,14 +13,15 @@ type Store interface {
 	Get(key []byte) ([]byte, error)
 	// Delete remove the key from store
 	Delete(key []byte) error
+	// Get snapshot from store
+	GetSnapshot() ([]byte, error)
 }
 
 // NewStore create the raft store
-func NewStore(cfg cfg.StoreCfg) (Store, error) {
+func NewStore(cfg cfg.StoreCfg, snapshotter *snap.Snapshotter, proposeC chan<- string, commitC <-chan *commit, errorC <-chan error, addr string) (Store, error) {
 	if cfg.Memory {
-		return newMemoryStore()
+		panic("Memory store is not support")
 	}
 
-	// TODO: need to implement
-	return newPebbleStore()
+	return newPebbleStore(snapshotter, proposeC, commitC, errorC, addr)
 }

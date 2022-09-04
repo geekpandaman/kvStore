@@ -4,3 +4,7 @@ addr = "node1:8080"
 [store]
 memory = false
 dataPath = "/tmp"
+
+[raft]
+id = 1
+peers = "http://node1:9090,http://node2:9090,http://node3:9090"

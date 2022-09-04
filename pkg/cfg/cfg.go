@@ -10,6 +10,7 @@ import (
 type Cfg struct {
 	API   APICfg   `toml:"api"`
 	Store StoreCfg `toml:"store"`
+	Raft  RaftCfg  `toml:"raft"`
 }
 
 // APICfg api cfg
@@ -21,6 +22,11 @@ type APICfg struct {
 type StoreCfg struct {
 	Memory   bool   `toml:"memory"`
 	DataPath string `toml:"dataPath"`
+}
+
+type RaftCfg struct {
+	ID    int    `toml:"id"`
+	Peers string `toml:"peers"`
 }
 
 // MustParseCfg parse cfg, exit if has any error
