@@ -83,7 +83,7 @@ func (p *pebbleStore) Delete(key []byte) error {
 	p.RLock()
 	defer p.RUnlock()
 	p.Propose(key, nil, true)
-	return p.db.Delete(key, pebble.Sync)
+	return nil
 }
 
 func (p *pebbleStore) Propose(k []byte, v []byte, isDelete bool) {
